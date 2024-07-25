@@ -47,7 +47,7 @@ public class Application {
     public ResponseEntity<Post> update(@PathVariable String id, @RequestBody Post data) {
         Optional<Post> maybePost = posts.stream().filter(p -> p.getId().equals(id))
                 .findFirst();
-        if(maybePost.isPresent()) {
+        if (maybePost.isPresent()) {
             Post post = maybePost.get();
             post.setId(id);
             post.setTitle(data.getTitle());
