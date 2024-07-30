@@ -68,56 +68,83 @@ class ApplicationTest {
 
 
     // BEGIN
+    private Task generateTask() {
+        return Instancio.of(Task.class)
+                .ignore(Select.field(Task::getId))
+                .supply(Select.field(Task::getTitle), () -> faker.lorem().word())
+                .supply(Select.field(Task::getDescription), () -> faker.lorem().paragraph())
+                .create();
+    }
+
     @Test
     public void testShow() throws Exception {
-        var task = Instancio.of(Task.class)
-                .supply(Select.field(Task::getTitle), () -> faker.lorem().word())
-                .supply(Select.field(Task::getDescription), () -> faker.lorem().word())
-                .create();
+
+        var task = generateTask();
         taskRepository.save(task);
 
-        var result = mockMvc.perform(get("/tasks/" + task.getId()))
-                .andExpect(status().isOk());
+        var request = get("/tasks/{id}", task.getId());
+        var result = mockMvc.perform(request)
+                .andExpect(status().isOk())
+                .andReturn();
+        var body = result.getResponse().getContentAsString();
+
+        assertThatJson(body).and(
+                v -> v.node("title").isEqualTo(task.getTitle()),
+                v -> v.node("description").isEqualTo(task.getDescription())
+        );
     }
 
     @Test
     public void testCreate() throws Exception {
-        var task = Instancio.of(Task.class)
-                .supply(Select.field(Task::getTitle), () -> faker.lorem().word())
-                .supply(Select.field(Task::getDescription), () -> faker.lorem().word())
-                .create();
+        var data = generateTask();
 
         var request = post("/tasks")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(om.writeValueAsString(task));
+                .content(om.writeValueAsString(data));
 
         mockMvc.perform(request)
                 .andExpect(status().isCreated());
 
-        assertThat(taskRepository.findAll()).hasSize(2);
+        var task = taskRepository.findByTitle(data.getTitle()).get();
+
+        assertThat(task).isNotNull();
+        assertThat(task.getTitle()).isEqualTo(data.getTitle());
+        assertThat(task.getDescription()).isEqualTo(data.getDescription());
     }
 
     @Test
     public void testUpdate() throws Exception {
-        var task = Instancio.of(Task.class)
-                .supply(Select.field(Task::getTitle), () -> faker.lorem().word())
-                .supply(Select.field(Task::getDescription), () -> faker.lorem().word())
-                .create();
+        var task = generateTask();
         taskRepository.save(task);
 
-        task.setDescription(faker.lorem().word());
+        var data = new HashMap<>();
+        data.put("title", "new title");
 
-        var request = put("/tasks/" + task.getId())
+        var request = put("/tasks/{id}", task.getId())
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(om.writeValueAsString(task));
+                .content(om.writeValueAsString(data));
 
         mockMvc.perform(request)
                 .andExpect(status().isOk());
 
-        var actualTask = taskRepository.findById(task.getId()).get();
+        task = taskRepository.findById(task.getId()).get();
 
-        assertThat(actualTask.getDescription()).isEqualTo(task.getDescription());
-        assertThat(taskRepository.findAll()).hasSize(3);
+        assertThat(task.getTitle()).isEqualTo(data.get("title"));
+    }
+
+    @Test
+    public void testDelete() throws Exception {
+
+        var task = generateTask();
+        taskRepository.save(task);
+
+        var request = delete("/tasks/{id}", task.getId());
+
+        mockMvc.perform(request)
+                .andExpect(status().isOk());
+
+        task = taskRepository.findById(task.getId()).orElse(null);
+        assertThat(task).isNull();
     }
     // END
 }
